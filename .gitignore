@@ -1,0 +1,32 @@
+# Python cache/build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local test/build output
+/dist/
+/ORIGINAL/
+
+# Add-on updater local state
+/io_scene_niftools_updater/io_scene_niftools_updater_status.json
+
+# Blender autosaves/backups
+*.blend1
+*.blend2
+
+# Test/tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Logs
+*.log

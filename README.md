@@ -11,6 +11,8 @@ This build was created for users who still need to import and export **NetImmers
 
 > This is not an official NifTools release. Keep backups of your files and always check the imported/exported result before using it in production.
 
+![exemplo](exemplo.png)
+
 ## Languages
 
 - [English](#english)

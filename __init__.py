@@ -49,7 +49,7 @@ bl_info = {
     "description": "Import and export files in the NetImmerse/Gamebryo formats (.nif, .kf, .egm)",
     "author": "Niftools team",
     "blender": (2, 82, 0),
-    "version": (0, 1, 1),  # can't read from VERSION, blender wants it hardcoded
+    "version": (0, 1, 2),  # can't read from VERSION, blender wants it hardcoded
     "api": 39257,
     "location": "File > Import-Export",
     "warning": "Generally stable port of the Niftool's Blender NifScripts, many improvements, still work in progress",
@@ -61,19 +61,71 @@ bl_info = {
 global current_dir
 
 
+def _normal_path(path):
+    return os.path.normcase(os.path.abspath(path))
+
+
+def _path_is_inside(path, parent):
+    try:
+        return os.path.commonpath([_normal_path(path), _normal_path(parent)]) == _normal_path(parent)
+    except (TypeError, ValueError):
+        return False
+
+
+def _prioritize_bundled_dependencies(dependencies_path):
+    dependencies_path = os.path.abspath(dependencies_path)
+    dependencies_norm = _normal_path(dependencies_path)
+    filtered_paths = []
+    for path in sys.path:
+        try:
+            if _normal_path(path) == dependencies_norm:
+                continue
+        except TypeError:
+            pass
+        filtered_paths.append(path)
+    sys.path[:] = filtered_paths
+    sys.path.insert(0, dependencies_path)
+
+
+def _drop_external_dependency_modules(dependencies_path):
+    for module_name, module in tuple(sys.modules.items()):
+        if not (module_name == "nifgen" or module_name.startswith("nifgen.")
+                or module_name == "pyffi" or module_name.startswith("pyffi.")):
+            continue
+
+        module_file = getattr(module, "__file__", None)
+        if not module_file or not _path_is_inside(module_file, dependencies_path):
+            del sys.modules[module_name]
+
+
 def locate_dependencies():
-    # Python dependencies are bundled inside the io_scene_nif/dependencies folder
+    # Python dependencies are bundled inside the io_scene_niftools/dependencies folder.
     global current_dir
     current_dir = os.path.dirname(__file__)
     _dependencies_path = os.path.join(current_dir, "dependencies")
-    if _dependencies_path not in sys.path:
-        sys.path.append(_dependencies_path)
-    del _dependencies_path
+    _prioritize_bundled_dependencies(_dependencies_path)
+    _drop_external_dependency_modules(_dependencies_path)
 
     with open(os.path.join(current_dir, "VERSION.txt")) as version:
         NifLog.info(f"Loading: Blender Niftools Addon: {version.read()}")
-        import nifgen.formats.nif as NifFormat
+        try:
+            import nifgen.formats.nif as NifFormat
+        except KeyError as exc:
+            if exc.args == ("NiNode",):
+                raise RuntimeError(
+                    "Bundled nifgen failed to load NiNode. Reinstall from a clean addon ZIP "
+                    "that includes io_scene_niftools/dependencies."
+                ) from exc
+            raise
+        if not _path_is_inside(getattr(NifFormat, "__file__", ""), _dependencies_path):
+            raise RuntimeError(
+                "Loaded nifgen from outside the addon. Reinstall from a clean addon ZIP "
+                "or remove conflicting nifgen packages from Blender's Python path."
+            )
+        if "NiNode" not in getattr(NifFormat, "classes", {}):
+            raise RuntimeError("Bundled nifgen is incomplete: missing NiNode.")
         NifLog.info(f"Loading: NifFormat: {NifFormat.__xml_version__}") # todo [generated] update this and library to have actual versioning
+    del _dependencies_path
 
 
 locate_dependencies()
